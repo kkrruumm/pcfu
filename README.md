@@ -14,7 +14,7 @@ This is my solution to DDNS, just like, without using a super bloated DDNS clien
 # Usage
 
 * Update a record using flags:
-  `pcfu -z <zone_id> -k <api_token> -t 1 -i https://ip.kris.sh -f /var/cache/pcfu.ip -d kris.sh -p false [-r 1.1.1.1]`
+  `pcfu -z <zone_id> -k <api_token> -t 1 -i https://ip.kris.sh -f /var/cache/pcfu.ip -d kris.sh -p false -r 1.1.1.1`
   
 * Update a record using a config file:
   `pcfu -c /etc/pcfu.conf`
