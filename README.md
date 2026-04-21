@@ -9,7 +9,7 @@ This is my solution to DDNS, just like, without using a super bloated DDNS clien
 * any POSIX-capable shell
 * `curl`
 * `dig` (from bind-tools / bind-utils)
-* `cat` and `sed`.
+* `cat` and `sed`
 
 # Usage
 
