@@ -100,13 +100,13 @@ fi
 
 : "${resolver_address:=1.1.1.1}"
 
-: "${ttl:?ttl is unset. Cannot continue.}"
-: "${zone_id:?zone_id is unset. Cannot continue.}"
-: "${cloudflare_api_key:?cloudflare_api_key is unset. Cannot continue.}"
-: "${ip_provider:?ip_provider is unset. Cannot continue.}"
-: "${cache_file:?cache_file is unset. Cannot continue.}"
-: "${domain_name:?domain_name is unset. Cannot continue.}"
-: "${proxied:?proxied is unset. Cannot continue.}"
+: "${ttl:?variable unset. Cannot continue.}"
+: "${zone_id:?variable unset. Cannot continue.}"
+: "${cloudflare_api_key:?variable unset. Cannot continue.}"
+: "${ip_provider:?variable unset. Cannot continue.}"
+: "${cache_file:?variable unset. Cannot continue.}"
+: "${domain_name:?variable unset. Cannot continue.}"
+: "${proxied:?variable unset. Cannot continue.}"
 
 # if the logfile is new/doesn't exist we need to fill it out
 # this probably needs some degree of verification TODO
