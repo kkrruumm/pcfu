@@ -1,0 +1,169 @@
+#!/bin/sh
+# https://www.shellcheck.net/wiki/SC1090
+# shellcheck disable=1090
+
+BOLD='\033[1m'
+CLEAR='\033[0m'
+
+die() {
+    printf "%b\n" "pcfu: fatal: $1"
+    exit 1
+}
+
+for i in dig cat curl sed ; do
+    type "$i" > /dev/null ||
+        die "Script dependency: ${i} not found in PATH."
+done
+
+info() {
+    printf "%b\n" "pcfu: $1"
+    return 0
+}
+
+help() {
+    printf "%b\n" "pcfu - Simple POSIX shell Cloudflare IP address updater
+${BOLD}Usage:${CLEAR} pcfu [OPTIONS]
+${BOLD}Options:${CLEAR}
+    ${BOLD}-c${CLEAR}  Specifies a config file that contains all of the other options.
+        If this is provided and the given config file is valid, none of the other options are necessary.
+        If not provided, all of the other options are ${BOLD}required.${CLEAR}
+
+    ${BOLD}-z${CLEAR}  Specifies the Cloudflare Zone ID.
+        (Config variable: zone_id)
+
+    ${BOLD}-k${CLEAR}  Specifies the Cloudflare API key for the given domain.
+        For this to work, you must have a Cloudflare API token with ZONE_DNS_EDIT permissions.
+        (Config variable: cloudflare_api_key)
+
+    ${BOLD}-t${CLEAR}  Specifies the domain TTL, a value of '1' will represent Auto
+        if you do not want to give the domain a specific TTL.
+        (Config variable: ttl)
+
+    ${BOLD}-i${CLEAR}  Specifies the IP provider you wish to use to get your current IP. In order for this to work, curling the IP provider URL
+        must return only the IP address. Valid options, for example, may be one of:
+        - https://icanhazip.com
+        - https://ip.kris.sh
+        - ...
+        (Config variable: ip_provider)
+
+    ${BOLD}-f${CLEAR}  Specifies the IP address cache file location. This is required so the script can log the current IP
+        and later check it for changes, as opposed to sending a request for this on every invocation.
+        (Config variable: cache_file)
+
+    ${BOLD}-d${CLEAR}  Specifies the domain name you wish to update. Example: <kris.sh>
+        (Config variable: domain_name)
+
+    ${BOLD}-r${CLEAR}  Specifies the resolver to use to check the current IP address assignment of a given domain.
+        This defaults to Cloudflare (1.1.1.1) but can be changed to any other DNS server.
+        (Config variable: resolver_address)
+
+    ${BOLD}-p${CLEAR}  Specifies whether or not the domain should have Cloudflare proxying enabled.
+        Valid values are 'true' or 'false'.
+        (Config variable: proxied)
+                               
+${BOLD}Config File:${CLEAR}
+    If you would like to use a config file as opposed to setting your options via the flags,
+    you may instead provide a path to a config file as a flag instead (see opt -c).
+     
+    This config file should contain the various variables above, set in a shell script compliant way.
+    Upon launch, pcfu will attempt to source the supplied config file.
+"
+    exit
+}
+
+if [ "$1" = "help" ] || [ -z "$1" ]; then
+    help
+fi
+
+while getopts "k:i:f:c:d:z:r:t:p:" opts; do
+    case "${opts}" in
+        t) ttl="${OPTARG}" ;;
+        z) zone_id="${OPTARG}" ;;
+        r) resolver_address="${OPTARG}" ;;
+        k) cloudflare_api_key="${OPTARG}" ;;
+        i) ip_provider="${OPTARG}" ;;
+        f) cache_file="${OPTARG}" ;;
+        c) config_file="${OPTARG}" ;;
+        d) domain_name="${OPTARG}" ;;
+        p) proxied="${OPTARG}" ;;
+        *) die "Undefined option. See 'pcfu help' for usage information." ;;
+    esac
+done
+
+if [ -n "$config_file" ]; then
+    if [ ! -f "$config_file" ]; then
+        die "Config file: ${config_file} does not appear to exist, or it is the wrong filetype."
+    else
+        . "$config_file"
+    fi
+fi
+
+for i in ttl zone_id resolver_address cloudflare_api_key ip_provider cache_file domain_name proxied ; do
+    eval x='$'"$i"
+    [ -z "$x" ] &&
+        die "$i is unset. Cannot continue."
+    unset x i
+done
+
+[ -z "$resolver_address" ] &&
+    resolver_address='1.1.1.1'
+
+# if the logfile is new/doesn't exist we need to fill it out
+# this probably needs some degree of verification TODO
+if [ ! -f "$cache_file" ]; then
+    info "Logging IP address to new cache file: ${cache_file}"
+    curl --silent -4 "$ip_provider" > "$cache_file" ||
+        die "Failed to write IP address to new cache file: ${cache_file}"
+fi
+
+# get currently mapped address
+mapped_address=$(dig +short A "$domain_name" "@${resolver_address}" | head -n 1)
+
+# get last logged address
+current_address=$(cat "$cache_file")
+
+# get the actual current public IP from the provider
+public_address=$(curl --silent -4 "$ip_provider") ||
+    die "Failed to fetch current public IP from ${ip_provider}"
+
+[ -z "$public_address" ] &&
+    die "IP provider ${ip_provider} returned an empty response."
+
+# if nothing has changed between the cache, the DNS record, and our actual IP, exit early
+if [ "$public_address" = "$current_address" ] && [ "$public_address" = "$mapped_address" ]; then
+    info "IP address (${public_address}) has not changed. Nothing to do."
+    exit 0
+fi
+
+info "IP change detected. Cached: ${current_address}, DNS: ${mapped_address}, Current: ${public_address}"
+
+# we need the cloudflare DNS record ID to issue a PUT
+record_id=$(curl --silent \
+    -X GET "https://api.cloudflare.com/client/v4/zones/${zone_id}/dns_records?type=A&name=${domain_name}" \
+    -H "Authorization: Bearer ${cloudflare_api_key}" \
+    -H "Content-Type: application/json" \
+    | sed -n 's/.*"id":"\([^"]*\)".*/\1/p' | head -n 1)
+
+[ -z "$record_id" ] &&
+    die "Could not retrieve DNS record ID for ${domain_name} in zone ${zone_id}. Check your API key and zone ID."
+
+# push the new A record to Cloudflare
+response=$(curl --silent \
+    -X PUT "https://api.cloudflare.com/client/v4/zones/${zone_id}/dns_records/${record_id}" \
+    -H "Authorization: Bearer ${cloudflare_api_key}" \
+    -H "Content-Type: application/json" \
+    --data "{\"type\":\"A\",\"name\":\"${domain_name}\",\"content\":\"${public_address}\",\"ttl\":${ttl},\"proxied\":${proxied}}")
+
+# success check, cloudflare returns "success":true on success
+case "$response" in
+    *'"success":true'*)
+        info "Successfully updated ${domain_name} -> ${public_address}"
+        printf "%s" "$public_address" > "$cache_file" ||
+            die "Updated DNS record but failed to write new IP to cache file: ${cache_file}"
+        ;;
+    *)
+        die "Cloudflare API returned a failure response: ${response}"
+        ;;
+esac
+
+exit 0
