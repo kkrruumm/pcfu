@@ -98,15 +98,15 @@ if [ -n "$config_file" ]; then
     fi
 fi
 
-for i in ttl zone_id resolver_address cloudflare_api_key ip_provider cache_file domain_name proxied ; do
-    eval x='$'"$i"
-    [ -z "$x" ] &&
-        die "$i is unset. Cannot continue."
-    unset x i
-done
+: "${resolver_address:=1.1.1.1}"
 
-[ -z "$resolver_address" ] &&
-    resolver_address='1.1.1.1'
+: "${ttl:?ttl is unset. Cannot continue.}"
+: "${zone_id:?zone_id is unset. Cannot continue.}"
+: "${cloudflare_api_key:?cloudflare_api_key is unset. Cannot continue.}"
+: "${ip_provider:?ip_provider is unset. Cannot continue.}"
+: "${cache_file:?cache_file is unset. Cannot continue.}"
+: "${domain_name:?domain_name is unset. Cannot continue.}"
+: "${proxied:?proxied is unset. Cannot continue.}"
 
 # if the logfile is new/doesn't exist we need to fill it out
 # this probably needs some degree of verification TODO
@@ -148,22 +148,11 @@ record_id=$(curl --silent \
     die "Could not retrieve DNS record ID for ${domain_name} in zone ${zone_id}. Check your API key and zone ID."
 
 # push the new A record to Cloudflare
-response=$(curl --silent \
+curl --silent --fail-with-body \
     -X PUT "https://api.cloudflare.com/client/v4/zones/${zone_id}/dns_records/${record_id}" \
     -H "Authorization: Bearer ${cloudflare_api_key}" \
     -H "Content-Type: application/json" \
-    --data "{\"type\":\"A\",\"name\":\"${domain_name}\",\"content\":\"${public_address}\",\"ttl\":${ttl},\"proxied\":${proxied}}")
-
-# success check, cloudflare returns "success":true on success
-case "$response" in
-    *'"success":true'*)
-        info "Successfully updated ${domain_name} -> ${public_address}"
-        printf "%s" "$public_address" > "$cache_file" ||
-            die "Updated DNS record but failed to write new IP to cache file: ${cache_file}"
-        ;;
-    *)
-        die "Cloudflare API returned a failure response: ${response}"
-        ;;
-esac
+    --data "{\"type\":\"A\",\"name\":\"${domain_name}\",\"content\":\"${public_address}\",\"ttl\":${ttl},\"proxied\":${proxied}}" ||
+        die "Cloudflare API request failed when updating ${domain_name}."
 
 exit 0
