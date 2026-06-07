@@ -24,7 +24,11 @@ This is my solution to DDNS, just like, without using a super bloated DDNS clien
 
 # Installation
 
-Put the `pcfu` script in `$PATH` somewhere. On Linux, a good location tends to be `/usr/local/bin`.
+Put the `pcfu` script in `$PATH` somewhere. On Linux or OpenBSD, a good location tends to be `/usr/local/bin` or `/usr/local/sbin`.
+
+If running this in the background, I recommend just executing it with cron every 5 minutes or something.
+
+If you want to collect logs, just run with `command_and_stuff > /var/log/pcfu.log` or otherwise to output to a file. If running on something like OpenBSD, `logger` may be used instead.
 
 # Options
 
@@ -63,6 +67,10 @@ Put the `pcfu` script in `$PATH` somewhere. On Linux, a good location tends to b
 * `-p` - Specifies whether or not the domain should have Cloudflare proxying enabled.
   Valid values are `true` or `false`.
   (Config variable: `proxied`)
+
+* `-l` - Specifies whether or not the script should provide output when executed but the IP hasn't changed.
+  Valid values are 'true' or 'false'.
+  (Config variable: loud)
 
 The order these options are set in does not matter.
 
