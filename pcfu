@@ -104,6 +104,7 @@ if [ -n "$config_file" ]; then
 fi
 
 : "${resolver_address:=1.1.1.1}"
+: "${loud:=false}"
 
 : "${ttl:?variable unset. Cannot continue.}"
 : "${zone_id:?variable unset. Cannot continue.}"
@@ -112,8 +113,6 @@ fi
 : "${cache_file:?variable unset. Cannot continue.}"
 : "${domain_name:?variable unset. Cannot continue.}"
 : "${proxied:?variable unset. Cannot continue.}"
-
-loud="${loud:-false}"
 
 # if the logfile is new/doesn't exist we need to fill it out
 # this probably needs some degree of verification TODO
