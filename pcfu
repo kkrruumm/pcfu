@@ -60,6 +60,10 @@ ${BOLD}Options:${CLEAR}
     ${BOLD}-p${CLEAR}  Specifies whether or not the domain should have Cloudflare proxying enabled.
         Valid values are 'true' or 'false'.
         (Config variable: proxied)
+
+    ${BOLD}-l${CLEAR}  Specifies whether or not the script should provide output when executed but the IP hasn't changed.
+        Valid values are 'true' or 'false'.
+        (Config variable: loud)
                                
 ${BOLD}Config File:${CLEAR}
     If you would like to use a config file as opposed to setting your options via the flags,
@@ -75,7 +79,7 @@ if [ "$1" = "help" ] || [ -z "$1" ]; then
     help
 fi
 
-while getopts "k:i:f:c:d:z:r:t:p:" opts; do
+while getopts "k:i:f:c:d:z:r:t:p:l:" opts; do
     case "${opts}" in
         t) ttl="${OPTARG}" ;;
         z) zone_id="${OPTARG}" ;;
@@ -86,6 +90,7 @@ while getopts "k:i:f:c:d:z:r:t:p:" opts; do
         c) config_file="${OPTARG}" ;;
         d) domain_name="${OPTARG}" ;;
         p) proxied="${OPTARG}" ;;
+        l) loud="${OPTARG}" ;;
         *) die "Undefined option. See 'pcfu help' for usage information." ;;
     esac
 done
@@ -107,6 +112,8 @@ fi
 : "${cache_file:?variable unset. Cannot continue.}"
 : "${domain_name:?variable unset. Cannot continue.}"
 : "${proxied:?variable unset. Cannot continue.}"
+
+loud="${loud:-false}"
 
 # if the logfile is new/doesn't exist we need to fill it out
 # this probably needs some degree of verification TODO
@@ -131,7 +138,8 @@ public_address=$(curl --silent -4 "$ip_provider") ||
 
 # if nothing has changed between the cache, the DNS record, and our actual IP, exit early
 if [ "$public_address" = "$current_address" ] && [ "$public_address" = "$mapped_address" ]; then
-    info "IP address (${public_address}) has not changed. Nothing to do."
+    [ "$loud" = 'true' ] &&
+        info "IP address (${public_address}) has not changed. Nothing to do."
     exit 0
 fi
 
